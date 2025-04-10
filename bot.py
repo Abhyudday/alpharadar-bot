@@ -3,7 +3,7 @@ import logging
 import requests
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -25,45 +25,30 @@ logging.basicConfig(
 
 # Telegram command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("📋 Commands", callback_data='commands')]
-    ]
+    keyboard = [[InlineKeyboardButton("📋 View Commands", callback_data="commands")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "👋 *Welcome to AlphaRadar!*
-
-Stay updated with your favorite wallets & tokens in real time!",
-        parse_mode='Markdown', reply_markup=reply_markup
+        text="👋 *Welcome to AlphaRadar!*\nTrack wallets and tokens with ease.",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
     )
 
-async def commands_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+async def commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("➕ Follow Wallet", callback_data='follow_help')],
-        [InlineKeyboardButton("➖ Unfollow Wallet", callback_data='unfollow_help')],
-        [InlineKeyboardButton("📜 List Wallets", callback_data='list_wallets')],
-        [InlineKeyboardButton("💰 Token Info", callback_data='token_help')],
+        [InlineKeyboardButton("📍 Follow Wallet", callback_data="follow"), InlineKeyboardButton("❌ Unfollow Wallet", callback_data="unfollow")],
+        [InlineKeyboardButton("📄 List Wallets", callback_data="list"), InlineKeyboardButton("📈 Token Info", callback_data="token")]
     ]
-    await query.edit_message_text(
-        "🛠️ *Available Commands:*", parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(keyboard)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    msg = (
+        "🛠️ *Available Commands:*\n"
+        "/start - Welcome message\n"
+        "/follow <wallet> - Start tracking a wallet\n"
+        "/unfollow <wallet> - Stop tracking a wallet\n"
+        "/list - Show your tracked wallets\n"
+        "/token <symbol> - Get real-time token data\n"
+        "/commands - Show this help message"
     )
-
-async def follow_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.edit_message_text("ℹ️ Usage: /follow <wallet_address>")
-
-async def unfollow_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.edit_message_text("ℹ️ Usage: /unfollow <wallet_address>")
-
-async def token_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.edit_message_text("ℹ️ Usage: /token <symbol>")
-
-async def list_wallets_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    wallets = user_wallets.get(user_id, set())
-    msg = "📭 You're not tracking any wallets." if not wallets else "📋 *Tracked wallets:*\n" + "\n".join(wallets)
-    await update.callback_query.edit_message_text(msg, parse_mode='Markdown')
+    await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
 
 async def follow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -123,7 +108,7 @@ async def token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def monitor_wallets(app):
-    await asyncio.sleep(5)  # ensure bot is fully ready
+    await asyncio.sleep(3)  # let app startup fully
     while True:
         for user_id, wallets in user_wallets.items():
             for wallet in wallets:
@@ -131,17 +116,17 @@ async def monitor_wallets(app):
                     headers = {"x-api-key": VYBE_API_KEY}
                     res = requests.get(f"{BASE_URL}/wallets/{wallet}/transactions", headers=headers)
                     if res.status_code == 200:
-                        txs = res.json().get("transactions", [])
+                        data = res.json()
+                        txs = data.get("transactions", [])
                         if txs:
                             latest_tx = txs[0]
                             tx_hash = latest_tx.get("tx_hash")
                             if wallet not in latest_tx_hash or tx_hash != latest_tx_hash[wallet]:
                                 latest_tx_hash[wallet] = tx_hash
                                 message = (
-                                    f"🚨 *New transaction detected*\n\n"
-                                    f"👜 Wallet: `{wallet}`\n"
-                                    f"🔗 Txn Hash: `{tx_hash}`\n"
-                                    f"💸 Amount: {latest_tx.get('amount')} {latest_tx.get('symbol')}"
+                                    f"🚨 *New Transaction for `{wallet}`*\n"
+                                    f"Hash: `{tx_hash}`\n"
+                                    f"Amount: {latest_tx.get('amount')} {latest_tx.get('symbol')}"
                                 )
                                 try:
                                     await app.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
@@ -158,15 +143,11 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("commands", commands))
     app.add_handler(CommandHandler("follow", follow))
     app.add_handler(CommandHandler("unfollow", unfollow))
     app.add_handler(CommandHandler("list", list_wallets))
     app.add_handler(CommandHandler("token", token))
-    app.add_handler(CallbackQueryHandler(commands_menu, pattern='commands'))
-    app.add_handler(CallbackQueryHandler(follow_help, pattern='follow_help'))
-    app.add_handler(CallbackQueryHandler(unfollow_help, pattern='unfollow_help'))
-    app.add_handler(CallbackQueryHandler(token_help, pattern='token_help'))
-    app.add_handler(CallbackQueryHandler(list_wallets_menu, pattern='list_wallets'))
 
     logging.info("Bot is running...")
     app.run_polling()
