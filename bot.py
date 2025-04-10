@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 import httpx
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 
@@ -11,7 +11,6 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 VYBE_API_KEY = os.getenv("VYBE_API_KEY")
-
 BASE_URL = "https://api.vybe.xyz/v1/solana"
 
 # Enable logging
@@ -22,20 +21,28 @@ user_wallets = {}  # {user_id: set(wallets)}
 latest_tx_hash = {}  # {wallet: last_seen_tx_hash}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[InlineKeyboardButton("📋 View Commands", callback_data="commands")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "👋 Welcome to AlphaRadar!\nUse /commands to see all available features."
+        "👋 *Welcome to AlphaRadar!*
+
+Track Solana wallets in real-time and stay updated on every transaction!",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
     )
 
 async def commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "🛠️ Available Commands:\n"
-        "/start - Welcome message\n"
-        "/follow <wallet> - Start tracking a wallet\n"
-        "/unfollow <wallet> - Stop tracking a wallet\n"
-        "/list - Show your tracked wallets\n"
-        "/commands - Show this help message"
+        "🛠️ *Available Commands:*
+
+"
+        "📌 /start - Show welcome message\n"
+        "➕ /follow `<wallet>` - Start tracking a wallet\n"
+        "➖ /unfollow `<wallet>` - Stop tracking a wallet\n"
+        "📜 /list - Show your tracked wallets\n"
+        "🛠 /commands - Show this help message"
     )
-    await update.message.reply_text(msg)
+    await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def follow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -43,12 +50,12 @@ async def follow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_wallets[user_id] = set()
 
     if len(context.args) != 1:
-        await update.message.reply_text("❌ Usage: /follow <wallet_address>")
+        await update.message.reply_text("❌ Usage: /follow `<wallet_address>`", parse_mode="Markdown")
         return
 
     wallet = context.args[0]
     user_wallets[user_id].add(wallet)
-    await update.message.reply_text(f"✅ Now tracking wallet: {wallet}")
+    await update.message.reply_text(f"✅ Now tracking wallet: `{wallet}`", parse_mode="Markdown")
 
 async def unfollow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -57,12 +64,12 @@ async def unfollow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if len(context.args) != 1:
-        await update.message.reply_text("❌ Usage: /unfollow <wallet_address>")
+        await update.message.reply_text("❌ Usage: /unfollow `<wallet_address>`", parse_mode="Markdown")
         return
 
     wallet = context.args[0]
     user_wallets[user_id].discard(wallet)
-    await update.message.reply_text(f"🛑 Stopped tracking wallet: {wallet}")
+    await update.message.reply_text(f"🛑 Stopped tracking wallet: `{wallet}`", parse_mode="Markdown")
 
 async def list_wallets(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -70,7 +77,8 @@ async def list_wallets(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not wallets:
         await update.message.reply_text("📭 You're not tracking any wallets.")
     else:
-        await update.message.reply_text("📋 Tracked wallets:\n" + "\n".join(wallets))
+        formatted = '\n'.join(f"• `{w}`" for w in wallets)
+        await update.message.reply_text(f"📋 *Tracked wallets:*\n{formatted}", parse_mode="Markdown")
 
 async def monitor_wallets(app):
     await asyncio.sleep(5)
@@ -95,9 +103,11 @@ async def monitor_wallets(app):
                                     link = f"https://solscan.io/tx/{tx_hash}"
 
                                     message = (
-                                        f"🚨 New transaction for `{wallet}`\n"
-                                        f"*Amount*: {amount} {token}\n"
-                                        f"[View on Solscan]({link})"
+                                        f"🚨 *New transaction detected!*
+"
+                                        f"Wallet: `{wallet}`\n"
+                                        f"Amount: {amount} {token}\n"
+                                        f"[🔍 View Transaction]({link})"
                                     )
                                     await app.bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown", disable_web_page_preview=True)
                     except Exception as e:
