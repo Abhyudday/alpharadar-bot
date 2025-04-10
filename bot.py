@@ -2,8 +2,8 @@ import os
 import logging
 import requests
 import asyncio
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -25,21 +25,45 @@ logging.basicConfig(
 
 # Telegram command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("📋 Commands", callback_data='commands')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "👋 Welcome to AlphaRadar!\nUse /commands to view all available features."
+        "👋 *Welcome to AlphaRadar!*
+
+Stay updated with your favorite wallets & tokens in real time!",
+        parse_mode='Markdown', reply_markup=reply_markup
     )
 
-async def commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = (
-        "🛠️ *Available Commands:*\n"
-        "/start - Welcome message\n"
-        "/follow <wallet> - Start tracking a wallet\n"
-        "/unfollow <wallet> - Stop tracking a wallet\n"
-        "/list - Show your tracked wallets\n"
-        "/token <symbol> - Get real-time token data\n"
-        "/commands - Show this help message"
+async def commands_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [InlineKeyboardButton("➕ Follow Wallet", callback_data='follow_help')],
+        [InlineKeyboardButton("➖ Unfollow Wallet", callback_data='unfollow_help')],
+        [InlineKeyboardButton("📜 List Wallets", callback_data='list_wallets')],
+        [InlineKeyboardButton("💰 Token Info", callback_data='token_help')],
+    ]
+    await query.edit_message_text(
+        "🛠️ *Available Commands:*", parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    await update.message.reply_text(msg, parse_mode='Markdown')
+
+async def follow_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.edit_message_text("ℹ️ Usage: /follow <wallet_address>")
+
+async def unfollow_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.edit_message_text("ℹ️ Usage: /unfollow <wallet_address>")
+
+async def token_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.edit_message_text("ℹ️ Usage: /token <symbol>")
+
+async def list_wallets_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    wallets = user_wallets.get(user_id, set())
+    msg = "📭 You're not tracking any wallets." if not wallets else "📋 *Tracked wallets:*\n" + "\n".join(wallets)
+    await update.callback_query.edit_message_text(msg, parse_mode='Markdown')
 
 async def follow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -52,7 +76,7 @@ async def follow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     wallet = context.args[0]
     user_wallets[user_id].add(wallet)
-    await update.message.reply_text(f"✅ Now tracking wallet: {wallet}")
+    await update.message.reply_text(f"✅ Now tracking wallet: `{wallet}`", parse_mode='Markdown')
 
 async def unfollow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -66,7 +90,7 @@ async def unfollow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     wallet = context.args[0]
     user_wallets[user_id].discard(wallet)
-    await update.message.reply_text(f"🛑 Stopped tracking wallet: {wallet}")
+    await update.message.reply_text(f"🛑 Stopped tracking wallet: `{wallet}`", parse_mode='Markdown')
 
 async def list_wallets(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -74,7 +98,7 @@ async def list_wallets(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not wallets:
         await update.message.reply_text("📭 You're not tracking any wallets.")
     else:
-        await update.message.reply_text("📋 Tracked wallets:\n" + "\n".join(wallets))
+        await update.message.reply_text("📋 *Tracked wallets:*\n" + "\n".join(wallets), parse_mode='Markdown')
 
 async def token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) != 1:
@@ -98,8 +122,8 @@ async def token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, parse_mode='Markdown')
 
-# Background task to monitor wallets
-async def monitor_wallets(application):
+async def monitor_wallets(app):
+    await asyncio.sleep(5)  # ensure bot is fully ready
     while True:
         for user_id, wallets in user_wallets.items():
             for wallet in wallets:
@@ -107,38 +131,42 @@ async def monitor_wallets(application):
                     headers = {"x-api-key": VYBE_API_KEY}
                     res = requests.get(f"{BASE_URL}/wallets/{wallet}/transactions", headers=headers)
                     if res.status_code == 200:
-                        txs = res.json()
+                        txs = res.json().get("transactions", [])
                         if txs:
                             latest_tx = txs[0]
                             tx_hash = latest_tx.get("tx_hash")
                             if wallet not in latest_tx_hash or tx_hash != latest_tx_hash[wallet]:
                                 latest_tx_hash[wallet] = tx_hash
                                 message = (
-                                    f"🚨 New transaction detected for wallet `{wallet}`\n"
-                                    f"Hash: `{tx_hash}`\n"
-                                    f"Amount: {latest_tx.get('amount')} {latest_tx.get('symbol')}"
+                                    f"🚨 *New transaction detected*\n\n"
+                                    f"👜 Wallet: `{wallet}`\n"
+                                    f"🔗 Txn Hash: `{tx_hash}`\n"
+                                    f"💸 Amount: {latest_tx.get('amount')} {latest_tx.get('symbol')}"
                                 )
                                 try:
-                                    await application.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
+                                    await app.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
                                 except Exception as e:
                                     logging.warning(f"Failed to send message to {user_id}: {e}")
                 except Exception as e:
                     logging.error(f"Error checking wallet {wallet}: {e}")
-        await asyncio.sleep(60)  # Poll every 60 seconds
+        await asyncio.sleep(60)
 
-# Launch background task after bot starts
-async def post_init(application):
-    asyncio.create_task(monitor_wallets(application))
+async def post_init(app):
+    app.create_task(monitor_wallets(app))
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("commands", commands))
     app.add_handler(CommandHandler("follow", follow))
     app.add_handler(CommandHandler("unfollow", unfollow))
     app.add_handler(CommandHandler("list", list_wallets))
     app.add_handler(CommandHandler("token", token))
+    app.add_handler(CallbackQueryHandler(commands_menu, pattern='commands'))
+    app.add_handler(CallbackQueryHandler(follow_help, pattern='follow_help'))
+    app.add_handler(CallbackQueryHandler(unfollow_help, pattern='unfollow_help'))
+    app.add_handler(CallbackQueryHandler(token_help, pattern='token_help'))
+    app.add_handler(CallbackQueryHandler(list_wallets_menu, pattern='list_wallets'))
 
     logging.info("Bot is running...")
     app.run_polling()
