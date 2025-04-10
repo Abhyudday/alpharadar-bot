@@ -34,8 +34,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "🛠️ *Available Commands:*
-"
+        "🛠️ *Available Commands:*\n"
         "\n"
         "📌 `/start` - Show welcome message\n"
         "➕ `/follow <wallet>` - Start tracking a wallet\n"
@@ -79,8 +78,7 @@ async def list_wallets(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 You're not tracking any wallets.")
     else:
         formatted = '\n'.join(f"• `{w}`" for w in wallets)
-        await update.message.reply_text(f"📋 *Tracked wallets:*
-{formatted}", parse_mode="Markdown")
+        await update.message.reply_text(f"📋 *Tracked wallets:*\n{formatted}", parse_mode="Markdown")
 
 async def monitor_wallets(app):
     await asyncio.sleep(5)
@@ -105,8 +103,7 @@ async def monitor_wallets(app):
                                     link = f"https://solscan.io/tx/{tx_hash}"
 
                                     message = (
-                                        f"🚨 *New transaction detected!*
-"
+                                        f"🚨 *New transaction detected!*\n"
                                         f"👛 Wallet: `{wallet}`\n"
                                         f"💸 Amount: {amount} {token}\n"
                                         f"🔗 [View Transaction]({link})"
