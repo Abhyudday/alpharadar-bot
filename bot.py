@@ -98,7 +98,8 @@ async def token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, parse_mode='Markdown')
 
-async def monitor_wallets(app):
+# Background task to monitor wallets
+async def monitor_wallets(application):
     while True:
         for user_id, wallets in user_wallets.items():
             for wallet in wallets:
@@ -118,15 +119,19 @@ async def monitor_wallets(app):
                                     f"Amount: {latest_tx.get('amount')} {latest_tx.get('symbol')}"
                                 )
                                 try:
-                                    await app.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
+                                    await application.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
                                 except Exception as e:
                                     logging.warning(f"Failed to send message to {user_id}: {e}")
                 except Exception as e:
                     logging.error(f"Error checking wallet {wallet}: {e}")
-        await asyncio.sleep(60)  # check every 60 seconds
+        await asyncio.sleep(60)  # Poll every 60 seconds
+
+# Launch background task after bot starts
+async def post_init(application):
+    asyncio.create_task(monitor_wallets(application))
 
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("commands", commands))
@@ -134,8 +139,6 @@ def main():
     app.add_handler(CommandHandler("unfollow", unfollow))
     app.add_handler(CommandHandler("list", list_wallets))
     app.add_handler(CommandHandler("token", token))
-
-    app.create_task(monitor_wallets(app))
 
     logging.info("Bot is running...")
     app.run_polling()
