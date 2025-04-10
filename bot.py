@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -14,11 +15,13 @@ BASE_URL = "https://api.vybe.xyz"
 # In-memory storage for tracked wallets per user
 user_wallets = {}
 
+# Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
+# Telegram command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Welcome to AlphaRadar!\nUse /follow <wallet> to track a wallet.\nUse /list to view tracked wallets."
@@ -74,14 +77,14 @@ async def token(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = response.json()
     msg = (
-        f"📊 *{data['name']}* (${data['symbol']})\n"
-        f"Price: ${data['price']}\n"
-        f"Volume (24h): ${data['volume_24h']}\n"
-        f"Sentiment: {data['sentiment']}"
+        f"📊 *{data.get('name', 'Unknown')}* (${data.get('symbol', symbol)})\n"
+        f"Price: ${data.get('price', 'N/A')}\n"
+        f"Volume (24h): ${data.get('volume_24h', 'N/A')}\n"
+        f"Sentiment: {data.get('sentiment', 'N/A')}"
     )
     await update.message.reply_text(msg, parse_mode='Markdown')
 
-if __name__ == '__main__':
+def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -90,5 +93,8 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("list", list_wallets))
     app.add_handler(CommandHandler("token", token))
 
-    print("Bot is running...")
+    logging.info("Bot is running...")
     app.run_polling()
+
+if __name__ == '__main__':
+    main()
