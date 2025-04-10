@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 import httpx
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 
@@ -21,26 +21,27 @@ user_wallets = {}  # {user_id: set(wallets)}
 latest_tx_hash = {}  # {wallet: last_seen_tx_hash}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("📋 View Commands", callback_data="commands")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         """
 👋 *Welcome to AlphaRadar!*
 
-Track Solana wallets in real-time and stay updated on every transaction!
+✨ Real-time alerts for your tracked Solana wallets.
+
+🔧 Use /commands to see what I can do!
         """,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        parse_mode="Markdown"
     )
 
 async def commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "🛠️ *Available Commands:*\n\n"
-        "📌 /start - Show welcome message\n"
-        "➕ /follow `<wallet>` - Start tracking a wallet\n"
-        "➖ /unfollow `<wallet>` - Stop tracking a wallet\n"
-        "📜 /list - Show your tracked wallets\n"
-        "🛠 /commands - Show this help message"
+        "🛠️ *Available Commands:*
+"
+        "\n"
+        "📌 `/start` - Show welcome message\n"
+        "➕ `/follow <wallet>` - Start tracking a wallet\n"
+        "➖ `/unfollow <wallet>` - Stop tracking a wallet\n"
+        "📜 `/list` - Show your tracked wallets\n"
+        "🛠 `/commands` - Show this help message"
     )
     await update.message.reply_text(msg, parse_mode="Markdown")
 
@@ -78,7 +79,8 @@ async def list_wallets(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 You're not tracking any wallets.")
     else:
         formatted = '\n'.join(f"• `{w}`" for w in wallets)
-        await update.message.reply_text(f"📋 *Tracked wallets:*\n{formatted}", parse_mode="Markdown")
+        await update.message.reply_text(f"📋 *Tracked wallets:*
+{formatted}", parse_mode="Markdown")
 
 async def monitor_wallets(app):
     await asyncio.sleep(5)
@@ -103,10 +105,11 @@ async def monitor_wallets(app):
                                     link = f"https://solscan.io/tx/{tx_hash}"
 
                                     message = (
-                                        f"🚨 *New transaction detected!*\n"
-                                        f"Wallet: `{wallet}`\n"
-                                        f"Amount: {amount} {token}\n"
-                                        f"[🔍 View Transaction]({link})"
+                                        f"🚨 *New transaction detected!*
+"
+                                        f"👛 Wallet: `{wallet}`\n"
+                                        f"💸 Amount: {amount} {token}\n"
+                                        f"🔗 [View Transaction]({link})"
                                     )
                                     await app.bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown", disable_web_page_preview=True)
                     except Exception as e:
