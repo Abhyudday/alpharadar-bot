@@ -24,18 +24,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("📋 View Commands", callback_data="commands")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "👋 *Welcome to AlphaRadar!*
+        """
+👋 *Welcome to AlphaRadar!*
 
-Track Solana wallets in real-time and stay updated on every transaction!",
+Track Solana wallets in real-time and stay updated on every transaction!
+        """,
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
 
 async def commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "🛠️ *Available Commands:*
-
-"
+        "🛠️ *Available Commands:*\n\n"
         "📌 /start - Show welcome message\n"
         "➕ /follow `<wallet>` - Start tracking a wallet\n"
         "➖ /unfollow `<wallet>` - Stop tracking a wallet\n"
@@ -103,8 +103,7 @@ async def monitor_wallets(app):
                                     link = f"https://solscan.io/tx/{tx_hash}"
 
                                     message = (
-                                        f"🚨 *New transaction detected!*
-"
+                                        f"🚨 *New transaction detected!*\n"
                                         f"Wallet: `{wallet}`\n"
                                         f"Amount: {amount} {token}\n"
                                         f"[🔍 View Transaction]({link})"
