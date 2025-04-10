@@ -83,20 +83,23 @@ async def token(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     symbol = context.args[0].upper()
     headers = {"x-api-key": VYBE_API_KEY}
-    response = requests.get(f"{BASE_URL}/tokens/{symbol}", headers=headers)
+    try:
+        response = requests.get(f"{BASE_URL}/tokens/{symbol}", headers=headers)
+        if response.status_code != 200:
+            await update.message.reply_text("⚠️ Token not found or API error.")
+            return
 
-    if response.status_code != 200:
-        await update.message.reply_text("⚠️ Token not found or API error.")
-        return
-
-    data = response.json()
-    msg = (
-        f"📊 {data.get('name', 'Unknown')} (${data.get('symbol', symbol)})\n"
-        f"Price: ${data.get('price', 'N/A')}\n"
-        f"Volume (24h): ${data.get('volume_24h', 'N/A')}\n"
-        f"Sentiment: {data.get('sentiment', 'N/A')}"
-    )
-    await update.message.reply_text(msg)
+        data = response.json()
+        msg = (
+            f"📊 {data.get('name', 'Unknown')} (${data.get('symbol', symbol)})\n"
+            f"Price: ${data.get('price', 'N/A')}\n"
+            f"Volume (24h): ${data.get('volume_24h', 'N/A')}\n"
+            f"Sentiment: {data.get('sentiment', 'N/A')}"
+        )
+        await update.message.reply_text(msg)
+    except Exception as e:
+        logging.error(f"Error fetching token info: {e}")
+        await update.message.reply_text("❌ API call failed.")
 
 async def monitor_wallets(app):
     await asyncio.sleep(5)  # delay before first check
@@ -106,6 +109,7 @@ async def monitor_wallets(app):
                 try:
                     headers = {"x-api-key": VYBE_API_KEY}
                     res = requests.get(f"{BASE_URL}/wallets/{wallet}/transactions", headers=headers)
+                    logging.info(f"Checking wallet {wallet}, Status: {res.status_code}")
                     if res.status_code == 200:
                         data = res.json()
                         txs = data.get("transactions", [])
@@ -115,17 +119,19 @@ async def monitor_wallets(app):
                             if wallet not in latest_tx_hash or tx_hash != latest_tx_hash[wallet]:
                                 latest_tx_hash[wallet] = tx_hash
                                 message = (
-                                    f"🚨 New transaction detected for wallet `{wallet}`\n"
+                                    f"🚨 New transaction for `{wallet}`\n"
                                     f"Hash: `{tx_hash}`\n"
                                     f"Amount: {latest_tx.get('amount')} {latest_tx.get('symbol')}"
                                 )
                                 try:
                                     await app.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
                                 except Exception as e:
-                                    logging.warning(f"Failed to send message to {user_id}: {e}")
+                                    logging.warning(f"Failed to notify user {user_id}: {e}")
+                    else:
+                        logging.warning(f"Failed API response for {wallet}: {res.status_code}")
                 except Exception as e:
                     logging.error(f"Error checking wallet {wallet}: {e}")
-        await asyncio.sleep(60)  # check every 60 seconds
+        await asyncio.sleep(60)
 
 async def post_init(app):
     app.create_task(monitor_wallets(app))
